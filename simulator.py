@@ -1,0 +1,202 @@
+from __future__ import annotations
+
+import typing
+from typing import TypeAlias
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import animation
+from shapely import Point
+from tqdm import tqdm
+
+if typing.TYPE_CHECKING:
+    from matplotlib.artist import Artist
+
+    from map import Map
+    from mcl import MCL
+    from robot import ParticleGroup, Robot
+
+RealNumber: TypeAlias = int | float
+
+
+class Simulator:
+    """
+    A class to simulate a robot using Monte Carlo Localization (MCL) in a given map.
+
+    The simulator manages:
+        - map, robot and particles initialization
+        - the robot's (particles') movement
+        - noise in the robot's movement and sensor measurements
+        - visualization of the MCL process
+    """
+
+    def __init__(
+        self,
+        map: Map,
+        # control_node: ControlNode,
+        num_particles: int,
+        init_x: RealNumber,
+        init_y: RealNumber,
+        init_theta: float,
+        roboot_radius: RealNumber,
+        sensor_max_distance: RealNumber = 100,
+        likelyhood_sigma: RealNumber = 10,
+        measurement_sigma: RealNumber = 1,
+        ema_alpha: float = 0.9,
+        v_sigma: RealNumber = 0.1,
+        w_sigma: RealNumber = 0.1,
+        resample_factor: float = 0.5,
+        fps: int = 30,
+        save_file_name: str = "simulation.gif",
+    ) -> None:
+        self.map = map
+        # self.control_node = control_node
+        self.num_particles = num_particles
+        self.mcl_solver = MCL(num_particles, likelyhood_sigma=likelyhood_sigma, alpha=ema_alpha)
+        self.measurement_sigma = measurement_sigma
+        self.v_sigma = v_sigma
+        self.w_sigma = w_sigma
+        self.resample_threshold = resample_factor
+        self.fps = fps
+        self.dt = 1 / fps
+        self.save_file_name = save_file_name
+        self.all_artists = []
+
+        # set up real robot
+        if self.map.world.contains(Point(init_x, init_y).buffer(roboot_radius)):
+            self.real_robot = Robot(
+                x=init_x,
+                y=init_y,
+                theta=init_theta,
+                radius=roboot_radius,
+                max_distance=sensor_max_distance,
+            )
+        else:
+            raise ValueError(
+                "The initial position of the robot is outside the map boundary."
+            )
+        # init measurement
+        self.prev_distance = np.random.normal(
+            self.real_robot.measure_distance(self.map.world), self.measurement_sigma
+        )
+
+        # set up particles
+        self.particles = ParticleGroup(
+            positions=np.array(self.map.sample_points(num_particles, roboot_radius)),
+            thetas=np.random.uniform(0, 2 * np.pi, num_particles),
+            weights=np.ones(num_particles),
+            radius=roboot_radius,
+            max_distance=sensor_max_distance,
+        )
+
+    def get_effective_sample_size(self) -> float:
+        """
+        Calculate the effective sample size (N_eff) of the particles.
+
+        Definition:
+            N_eff = 1 / sum(w_i^2)
+            where w_i is the normalized weight of the i-th particle.
+        """
+        normalized_weights = self.particles.weights / np.sum(self.particles.weights)
+        return 1 / np.sum(normalized_weights**2)
+
+    def run_step(self, prev_distance: float) -> float:
+        # ACT Model
+        # v, w = self.control_node.get_command(prev_distance)
+        v = 0
+        w = 1
+        # move real robot
+        self.real_robot.move(v, w, self.dt, self.v_sigma, self.w_sigma)
+        # move particles
+        self.particles.move(v, w, self.dt, self.v_sigma, self.w_sigma)
+
+        # SEE Model
+        # measure distance
+        real_distance = self.real_robot.measure_distance(
+            self.map.world
+        ) + np.random.normal(0, self.measurement_sigma)
+
+        distances = self.particles.measure_distance(self.map.world) + np.random.normal(
+            0, self.measurement_sigma, self.num_particles
+        )
+
+        # update weights
+        weights = self.mcl_solver.update_weights(
+            real_distance,
+            distances,
+            prev_weights=self.particles.weights,
+        )
+        self.particles.update_weights(weights)
+
+        # resample particles
+        N_eff = self.get_effective_sample_size()
+        if N_eff < self.resample_threshold * self.num_particles:
+            # resample particles
+            new_positions, new_thetas = self.mcl_solver.resample(
+                positions=self.particles.positions,
+                thetas=self.particles.thetas,
+                radius=self.real_robot.radius,
+                map=self.map,
+                weights=self.particles.weights,
+            )
+
+            self.particles.resample(new_positions, new_thetas)
+
+        return real_distance
+
+    def main_simulation(self, num_steps: int) -> None:
+        # progress bar
+        self.progress_bar = tqdm(total=num_steps, desc="Simulating: ", ncols=80)
+
+        def update_progress_bar(n: int, total: int) -> None:
+            self.progress_bar.update(1)
+            if n == total:
+                self.progress_bar.close()
+                print("Simulation finished. Saving animation...")
+
+        fig, ax = plt.subplots(dpi=300)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_xlim(0, 300)
+        ax.set_ylim(0, 300)
+        fig.tight_layout()
+
+        # init
+        # draw map once
+        map.visualize(ax)
+
+        # add real robot's artists: position and direction
+        robot_patch, robot_arrow = self.real_robot.visualize(
+            ax, alpha=0.5, color="blue"
+        )
+        self.all_artists.append(robot_patch)
+        self.all_artists.append(robot_arrow)
+        # add particles' artists: positions and directions
+        samples_patch, samples_arrows = self.particles.visualize(ax, color="red")
+        self.all_artists.extend(samples_patch)
+        self.all_artists.append(samples_arrows)
+
+        self.ani = animation.FuncAnimation(
+            fig,
+            self.update_frame,
+            frames=num_steps,
+            interval=50,
+            blit=True,
+        )
+
+        self.ani.save(
+            self.save_file_name,
+            writer=animation.PillowWriter(fps=self.fps),
+            progress_callback=update_progress_bar,
+        )
+
+    def update_frame(self, frame: int) -> list[Artist]:
+        cur_distance = self.run_step(self.prev_distance)
+
+        # update real robot
+        self.real_robot.update_artist(self.all_artists[:2])
+        # update particles
+        self.particles.update_artist(self.all_artists[2:])
+        self.prev_distance = cur_distance
+
+        return self.all_artists
