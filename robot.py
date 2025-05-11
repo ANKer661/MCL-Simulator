@@ -1,12 +1,18 @@
+from __future__ import annotations
+
+import typing
 from typing import TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
-from matplotlib.patches import PathPatch
-from matplotlib.quiver import Quiver
-from shapely import LineString, Point, Polygon
+from shapely import LineString, Point
 from shapely.plotting import _path_from_polygon, plot_polygon
+
+if typing.TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.patches import PathPatch
+    from matplotlib.quiver import Quiver
+    from shapely import Polygon
 
 RealNumber: TypeAlias = int | float
 
@@ -276,7 +282,7 @@ class ParticleGroup:
         # create a polygon for each particle to set alpha
         polygon_path_patch = [
             plot_polygon(
-                Polygon(self.get_shape(i)),
+                self.get_shape(i),
                 ax=ax,
                 color=color,
                 add_points=False,
