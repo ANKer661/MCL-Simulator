@@ -9,12 +9,14 @@ from matplotlib import animation
 from shapely import Point
 from tqdm import tqdm
 
+from mcl import MCL
+from robot import ParticleGroup, Robot
+
 if typing.TYPE_CHECKING:
     from matplotlib.artist import Artist
 
     from map import Map
-    from mcl import MCL
-    from robot import ParticleGroup, Robot
+
 
 RealNumber: TypeAlias = int | float
 
@@ -52,7 +54,9 @@ class Simulator:
         self.map = map
         # self.control_node = control_node
         self.num_particles = num_particles
-        self.mcl_solver = MCL(num_particles, likelyhood_sigma=likelyhood_sigma, alpha=ema_alpha)
+        self.mcl_solver = MCL(
+            num_particles, likelyhood_sigma=likelyhood_sigma, alpha=ema_alpha
+        )
         self.measurement_sigma = measurement_sigma
         self.v_sigma = v_sigma
         self.w_sigma = w_sigma
@@ -150,7 +154,7 @@ class Simulator:
 
         def update_progress_bar(n: int, total: int) -> None:
             self.progress_bar.update(1)
-            if n == total:
+            if n == total - 1:
                 self.progress_bar.close()
                 print("Simulation finished. Saving animation...")
 
@@ -163,7 +167,7 @@ class Simulator:
 
         # init
         # draw map once
-        map.visualize(ax)
+        self.map.visualize(ax)
 
         # add real robot's artists: position and direction
         robot_patch, robot_arrow = self.real_robot.visualize(
