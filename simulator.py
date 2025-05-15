@@ -40,7 +40,7 @@ class Simulator:
         init_x: RealNumber,
         init_y: RealNumber,
         init_theta: float,
-        roboot_radius: RealNumber,
+        robot_radius: RealNumber,
         sensor_max_distance: RealNumber = 100,
         likelyhood_sigma: RealNumber = 10,
         measurement_sigma: RealNumber = 1,
@@ -67,12 +67,12 @@ class Simulator:
         self.all_artists = []
 
         # set up real robot
-        if self.map.world.contains(Point(init_x, init_y).buffer(roboot_radius)):
+        if self.map.world.contains(Point(init_x, init_y).buffer(robot_radius)):
             self.real_robot = Robot(
                 x=init_x,
                 y=init_y,
                 theta=init_theta,
-                radius=roboot_radius,
+                radius=robot_radius,
                 max_distance=sensor_max_distance,
                 v_sigma=self.v_sigma,
                 w_sigma=self.w_sigma,
@@ -89,10 +89,10 @@ class Simulator:
 
         # set up particles
         self.particles = ParticleGroup(
-            positions=np.array(self.map.sample_points(num_particles, roboot_radius)),
+            positions=np.array(self.map.sample_points(num_particles, robot_radius)),
             thetas=np.random.uniform(0, 2 * np.pi, num_particles),
             weights=np.ones(num_particles),
-            radius=roboot_radius,
+            radius=robot_radius,
             max_distance=sensor_max_distance,
             v_sigma=self.v_sigma,
             w_sigma=self.w_sigma,
