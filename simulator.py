@@ -49,7 +49,7 @@ class Simulator:
         w_sigma: RealNumber = 0.1,
         resample_factor: float = 0.5,
         fps: int = 30,
-        save_file_name: str = "simulation.gif",
+        save_file_name: str = "simulation.mp4",
     ) -> None:
         self.map = map
         # self.control_node = control_node
@@ -192,7 +192,7 @@ class Simulator:
 
         self.ani.save(
             self.save_file_name,
-            writer=animation.PillowWriter(fps=self.fps),
+            writer=animation.FFMpegWriter(fps=self.fps),
             progress_callback=update_progress_bar,
         )
 
