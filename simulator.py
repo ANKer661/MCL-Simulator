@@ -74,6 +74,9 @@ class Simulator:
                 theta=init_theta,
                 radius=roboot_radius,
                 max_distance=sensor_max_distance,
+                v_sigma=self.v_sigma,
+                w_sigma=self.w_sigma,
+                measurement_sigma=self.measurement_sigma,
             )
         else:
             raise ValueError(
@@ -91,6 +94,9 @@ class Simulator:
             weights=np.ones(num_particles),
             radius=roboot_radius,
             max_distance=sensor_max_distance,
+            v_sigma=self.v_sigma,
+            w_sigma=self.w_sigma,
+            measurement_sigma=self.measurement_sigma,
         )
 
     def get_effective_sample_size(self) -> float:
@@ -110,19 +116,15 @@ class Simulator:
         v = 0
         w = 1
         # move real robot
-        self.real_robot.move(v, w, self.dt, self.v_sigma, self.w_sigma)
+        self.real_robot.move(v, w, self.dt)
         # move particles
-        self.particles.move(v, w, self.dt, self.v_sigma, self.w_sigma)
+        self.particles.move(v, w, self.dt)
 
         # SEE Model
         # measure distance
-        real_distance = self.real_robot.measure_distance(
-            self.map.world
-        ) + np.random.normal(0, self.measurement_sigma)
+        real_distance = self.real_robot.measure_distance(self.map.world)
 
-        distances = self.particles.measure_distance(self.map.world) + np.random.normal(
-            0, self.measurement_sigma, self.num_particles
-        )
+        distances = self.particles.measure_distance(self.map.world)
 
         # update weights
         weights = self.mcl_solver.update_weights(

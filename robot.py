@@ -27,6 +27,9 @@ class Robot:
         theta (float): orientation of the robot in radians.
         radius (float): radius of the robot.
         max_distance (float): maximum distance for robot's distance sensor.
+        v_sigma (float): Standard deviation of linear velocity noise.
+        w_sigma (float): Standard deviation of angular velocity noise.
+        measurement_sigma (float): Standard deviation of measurement noise.
     """
 
     def __init__(
@@ -36,11 +39,17 @@ class Robot:
         theta: float,
         radius: RealNumber,
         max_distance: RealNumber,
+        v_sigma: RealNumber = 0.1,
+        w_sigma: RealNumber = 0.1,
+        measurement_sigma: RealNumber = 1,
     ) -> None:
         self.theta = theta
         self.center_pos = [x, y]
         self.radius = radius
         self.max_distance = max_distance
+        self.v_sigma = v_sigma
+        self.w_sigma = w_sigma
+        self.measurement_sigma = measurement_sigma
 
     def get_shape(self) -> Polygon:
         """
@@ -123,13 +132,13 @@ class Robot:
         else:
             # if multiple intersections
             # after test, shapely returns the closest one
-            distance = robot_shape.distance(intersection)
+            distance = np.random.normal(
+                robot_shape.distance(intersection), self.measurement_sigma
+            )
 
         return distance
 
-    def move(
-        self, v: float, w: float, dt: float, v_sigma: float, w_sigma: float
-    ) -> None:
+    def move(self, v: float, w: float, dt: float) -> None:
         """
         Move the robot with linear velocity v and angular velocity w
         for a small time dt. Update the robot's position and orientation.
@@ -138,18 +147,17 @@ class Robot:
             v (float): Linear velocity.
             w (float): Angular velocity.
             dt (float): Time step.
-            v_sigma (float): Standard deviation of linear velocity noise.
-            w_sigma (float): Standard deviation of angular velocity noise.
         """
         x, y = self.center_pos
-        v = np.random.normal(v, v_sigma)
+        if v > 1e-5:  # if v is small, don't add noise
+            v = np.random.normal(v, self.v_sigma)
 
         if w < 1e-5:
             # if w is small, don't add noise
             new_x = x + v * np.cos(self.theta) * dt
             new_y = y + v * np.sin(self.theta) * dt
         else:
-            w = np.random.normal(w, w_sigma)
+            w = np.random.normal(w, self.w_sigma)
             new_x = x + v / w * (np.sin(self.theta + w * dt) - np.sin(self.theta))
             new_y = y - v / w * (np.cos(self.theta + w * dt) - np.cos(self.theta))
             self.theta = (self.theta + w * dt) % (2 * np.pi)
@@ -179,6 +187,9 @@ class ParticleGroup:
         weights (np.ndarray): Array of particle weights.
         radius (float): Radius of the particles.
         max_distance (float): Maximum distance for particle's distance sensor.
+        v_sigma (float): Standard deviation of linear velocity noise.
+        w_sigma (float): Standard deviation of angular velocity noise.
+        measurement_sigma (float): Standard deviation of measurement noise.
     """
 
     def __init__(
@@ -188,6 +199,9 @@ class ParticleGroup:
         weights: np.ndarray,
         radius: RealNumber,
         max_distance: RealNumber,
+        v_sigma: RealNumber = 0.1,
+        w_sigma: RealNumber = 0.1,
+        measurement_sigma: RealNumber = 1,
     ) -> None:
         self.num_particles = len(positions)
         self.positions = positions
@@ -195,22 +209,39 @@ class ParticleGroup:
         self.weights = weights
         self.radius = radius
         self.max_distance = max_distance
+        self.v_sigma = v_sigma
+        self.w_sigma = w_sigma
+        self.measurement_sigma = measurement_sigma
 
     def measure_distance(self, world: Polygon) -> np.ndarray:
         """
-        Consider each particle as a robot and measure the distance to the world boundary.
-        Refer to the `Robot` class for details.
+        Simulate rays from each particle's center in the direction of its
+        orientation (theta) and measure the distance to the world boundary.
 
         Returns:
             distances (np.ndarray): Array of distances from each particle to the world boundary.
         """
         distances = np.zeros(self.num_particles)
-        for i, ((x, y), theta) in enumerate(zip(self.positions, self.thetas)):
-            robot = Robot(
-                x, y, theta, radius=self.radius, max_distance=self.max_distance
-            )
-            distances[i] = robot.measure_distance(world)
 
+        end_point_x = self.positions[:, 0] + self.max_distance * np.cos(self.thetas)
+        end_point_y = self.positions[:, 1] + self.max_distance * np.sin(self.thetas)
+
+        for i in range(self.num_particles):
+            x, y = self.positions[i]
+            end_x, end_y = end_point_x[i], end_point_y[i]
+            ray = LineString([(x, y), (end_x, end_y)])
+
+            intersection = ray.intersection(world.boundary, grid_size=0.1)
+            if intersection.is_empty:
+                distances[i] = self.max_distance
+            else:
+                distances[i] = self.get_shape(i).distance(intersection)
+        
+        # add noise
+        distances += np.random.normal(
+            0, self.measurement_sigma, self.num_particles
+        )
+        
         return distances
 
     def update_weights(self, weights: np.ndarray) -> None:
@@ -237,7 +268,7 @@ class ParticleGroup:
         self.weights = np.ones(len(self.positions))
 
     def move(
-        self, v: float, w: float, dt: float, v_sigma: float, w_sigma: float
+        self, v: float, w: float, dt: float
     ) -> None:
         """
         Move the particles with linear velocity v and angular velocity w
@@ -246,16 +277,17 @@ class ParticleGroup:
             v (float): Linear velocity.
             w (float): Angular velocity.
             dt (float): Time step.
-            v_sigma (float): Standard deviation of linear velocity noise.
-            w_sigma (float): Standard deviation of angular velocity noise.
         """
-        v = np.random.normal(v, v_sigma, self.num_particles)  # shape: (num_particles,)
+
+        if v > 1e-5:  # if v is small, don't add noise
+            v = np.random.normal(v, self.v_sigma, self.num_particles)  # shape: (num_particles,)
+
         if w < 1e-5:
             self.positions[:, 0] += v * np.cos(self.thetas) * dt
             self.positions[:, 1] += v * np.sin(self.thetas) * dt
         else:
             w = np.random.normal(
-                w, w_sigma, self.num_particles
+                w, self.w_sigma, self.num_particles
             )  # shape: (num_particles,)
             self.positions[:, 0] += (
                 v / w * (np.sin(self.thetas + w * dt) - np.sin(self.thetas))
