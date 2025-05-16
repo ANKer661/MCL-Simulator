@@ -24,16 +24,20 @@ class MCL:
             - w_new = (1 - alpha) * w_new + alpha * w_old
             - Default is 0.0 (no EMA).
         sigma (RealNumber): The standard deviation of the Gaussian distribution used to update the weights.
+        random_probability (float): The probability of resampling randomly.
+            - Default is 0.1 (10% probability).
     """
     def __init__(
         self,
         num_particles: int,
         alpha: float = 0.0,
         likelyhood_sigma: RealNumber = 10,
+        random_probability: float = 0.1,
     ) -> None:
         self.num_particles = num_particles
         self.alpha = alpha
         self.sigma = likelyhood_sigma
+        self.random_probability = random_probability
 
     def update_weights(
         self,
@@ -85,15 +89,15 @@ class MCL:
         Returns:
             tuple[np.ndarray, np.ndarray]: The new positions and thetas of the particles.
         """
-        # Random Resampling (10% probability)
-        random_mask = np.random.uniform(0, 1, self.num_particles) < 0.1
+        # Random Resampling (p)
+        random_mask = np.random.uniform(0, 1, self.num_particles) < self.random_probability
         # random_positions = self.map.sample_points(
         #     n=np.sum(random_mask), robot_radius=self.real_robot.radius
         # )
         random_positions = map.sample_points(n=np.sum(random_mask), robot_radius=radius)
         random_thetas = np.random.uniform(0, 2 * np.pi, np.sum(random_mask))
 
-        # Low Variance Resampling (90% probability)
+        # Low Variance Resampling (1 - p)
         # normalize weights
         # normalized_weights = self.particles.weights / np.sum(self.particles.weights)
         normalized_weights = weights / np.sum(weights)
