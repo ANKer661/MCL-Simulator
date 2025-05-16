@@ -35,7 +35,7 @@ class Simulator:
     def __init__(
         self,
         map: Map,
-        # control_node: ControlNode,
+        control_node: ControlNode,
         num_particles: int,
         init_x: RealNumber,
         init_y: RealNumber,
@@ -48,14 +48,18 @@ class Simulator:
         v_sigma: RealNumber = 0.1,
         w_sigma: RealNumber = 0.1,
         resample_factor: float = 0.5,
+        resample_random_probability: float = 0.1,
         fps: int = 30,
         save_file_name: str = "simulation.mp4",
     ) -> None:
         self.map = map
-        # self.control_node = control_node
+        self.control_node = control_node
         self.num_particles = num_particles
         self.mcl_solver = MCL(
-            num_particles, likelyhood_sigma=likelyhood_sigma, alpha=ema_alpha
+            num_particles,
+            likelyhood_sigma=likelyhood_sigma,
+            alpha=ema_alpha,
+            random_probability=resample_random_probability,
         )
         self.measurement_sigma = measurement_sigma
         self.v_sigma = v_sigma
@@ -112,9 +116,9 @@ class Simulator:
 
     def run_step(self, prev_distance: float) -> float:
         # ACT Model
-        # v, w = self.control_node.get_command(prev_distance)
-        v = 0
-        w = 1
+        v, w = self.control_node.get_command(prev_distance)
+        # v = 0
+        # w = 1
         # move real robot
         self.real_robot.move(v, w, self.dt)
         # move particles
@@ -206,3 +210,23 @@ class Simulator:
         self.prev_distance = cur_distance
 
         return self.all_artists
+
+
+class ControlNode:
+    def __init__(self, max_linear=10.0, max_angular=2, safe_distance=30):
+        self.max_linear = max_linear
+        self.max_angular = max_angular
+        self.safe_distance = safe_distance
+
+    def get_command(self, front_dist: float) -> tuple[float, float]:
+        """
+        Given a front distance, return linear and angular velocity.
+        """
+        v = self.max_linear
+        omega = 0.0
+
+        if front_dist < self.safe_distance:
+            v = 0.0
+            omega = self.max_angular
+
+        return v, omega
