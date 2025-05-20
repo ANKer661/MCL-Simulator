@@ -115,7 +115,7 @@ class Robot:
             distance (float): The distance to the world boundary.
                 if the ray does not intersect the boundary, return max_distance.
         """
-        robot_shape = self.get_shape()
+
         ray = LineString(
             [
                 self.center_pos,
@@ -133,7 +133,7 @@ class Robot:
             # if multiple intersections
             # after test, shapely returns the closest one
             distance = np.random.normal(
-                robot_shape.distance(intersection), self.measurement_sigma
+                Point(*self.center_pos).distance(intersection), self.measurement_sigma
             )
 
         return distance
@@ -235,7 +235,7 @@ class ParticleGroup:
             if intersection.is_empty:
                 distances[i] = self.max_distance
             else:
-                distances[i] = self.get_shape(i).distance(intersection)
+                distances[i] = Point(*self.positions[i]).distance(intersection)
         
         # add noise
         distances += np.random.normal(
