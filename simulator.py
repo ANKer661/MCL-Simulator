@@ -54,7 +54,11 @@ class Simulator:
         fps: int = 30,
         speedup: int = 1,
         save_file_name: str = "simulation.mp4",
+        random_seed: int = 0,
     ) -> None:
+        # set random seed
+        np.random.seed(random_seed)
+
         self.map = map
         self.control_node = control_node
         self.num_particles = num_particles
@@ -158,7 +162,7 @@ class Simulator:
 
         return real_distance
 
-    def main_simulation(self, num_steps: int, seed: int = 0) -> None:
+    def main_simulation(self, num_steps: int) -> None:
         # progress bar
         self.progress_bar = tqdm(total=num_steps, desc="Simulating: ", ncols=80)
 
@@ -167,9 +171,6 @@ class Simulator:
             if n == total - 1:
                 self.progress_bar.close()
                 print("Simulation finished. Saving animation...")
-
-        # set random seed
-        np.random.seed(seed)
 
         # set up the figure
         fig = self.init_ani()
@@ -192,12 +193,14 @@ class Simulator:
         """
         Initialize the animation by creating a figure and initializing the artists.
         """
-        fig, ax = plt.subplots(dpi=200)
-        ax.set_aspect("equal")
-        ax.axis("off")
+
         x_min, y_min, x_max, y_max = self.map.get_bounds()
         x_padding = 0.05 * (x_max - x_min)
-        y_padding = 0.1 * (y_max - y_min)
+        y_padding = 0.05 * (y_max - y_min)
+        ratio = (x_max - x_min) / (y_max - y_min)
+        fig, ax = plt.subplots(figsize=(4.8 * ratio, 4.8))
+        ax.axis("off")
+        ax.set_aspect("equal")
         ax.set_xlim(x_min - x_padding, x_max + x_padding)
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
         fig.tight_layout()
@@ -217,7 +220,7 @@ class Simulator:
 
         # add real robot's artists: position and direction
         robot_patch, robot_arrow = self.real_robot.visualize(
-            ax, alpha=1.0, color="blue"
+            ax, alpha=0.6, color="blue"
         )
         self.all_artists.append(robot_patch)
         self.all_artists.append(robot_arrow)
@@ -258,6 +261,6 @@ class ControlNode:
 
         if front_dist < self.safe_distance:
             v = 0.0
-            omega = -self.max_angular
+            omega = self.max_angular
 
         return v, omega
