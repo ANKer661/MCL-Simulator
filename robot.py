@@ -149,10 +149,10 @@ class Robot:
             dt (float): Time step.
         """
         x, y = self.center_pos
-        if v > 1e-5:  # if v is small, don't add noise
+        if abs(v) > 1e-5:  # if v is small, don't add noise
             v = np.random.normal(v, self.v_sigma)
 
-        if w < 1e-5:
+        if abs(w) < 1e-5:
             # if w is small, don't add noise
             new_x = x + v * np.cos(self.theta) * dt
             new_y = y + v * np.sin(self.theta) * dt
@@ -279,10 +279,10 @@ class ParticleGroup:
             dt (float): Time step.
         """
 
-        if v > 1e-5:  # if v is small, don't add noise
+        if abs(v) > 1e-5:  # if v is small, don't add noise
             v = np.random.normal(v, self.v_sigma, self.num_particles)  # shape: (num_particles,)
 
-        if w < 1e-5:
+        if abs(w) < 1e-5:
             self.positions[:, 0] += v * np.cos(self.thetas) * dt
             self.positions[:, 1] += v * np.sin(self.thetas) * dt
         else:
@@ -377,9 +377,11 @@ class ParticleGroup:
 
         for i in range(self.num_particles):
             polygon_path_patches[i].set_path(_path_from_polygon(self.get_shape(i)))
-            polygon_path_patches[i].set_alpha(np.maximum(self.weights[i], 0.1))
+            # polygon_path_patches[i].set_alpha(np.maximum(self.weights[i], 0.1))
+            polygon_path_patches[i].set_alpha(self.weights[i])
 
         x, y, dx, dy = self.get_direction()
         arrows.set_offsets(np.column_stack([x, y]))
         arrows.set_UVC(dx, dy)
-        arrows.set_alpha(np.maximum(self.weights, 0.1))
+        # arrows.set_alpha(np.maximum(self.weights, 0.1))
+        arrows.set_alpha(self.weights)
