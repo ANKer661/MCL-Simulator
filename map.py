@@ -66,7 +66,7 @@ class Map:
         """
         return self.world.bounds
 
-    def save_map2json(self, file_name: str) -> None:
+    def save2json(self, file_name: str) -> None:
         """
         Save the map to a json file.
 
