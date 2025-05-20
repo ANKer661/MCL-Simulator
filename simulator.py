@@ -41,6 +41,7 @@ class Simulator:
         init_y: RealNumber,
         init_theta: float,
         robot_radius: RealNumber,
+        sample_radius: RealNumber,
         sensor_max_distance: RealNumber = 100,
         likelyhood_sigma: RealNumber = 10,
         measurement_sigma: RealNumber = 1,
@@ -93,10 +94,10 @@ class Simulator:
 
         # set up particles
         self.particles = ParticleGroup(
-            positions=np.array(self.map.sample_points(num_particles, robot_radius)),
+            positions=np.array(self.map.sample_points(num_particles, sample_radius)),
             thetas=np.random.uniform(0, 2 * np.pi, num_particles),
             weights=np.ones(num_particles),
-            radius=robot_radius,
+            radius=sample_radius,
             max_distance=sensor_max_distance,
             v_sigma=self.v_sigma,
             w_sigma=self.w_sigma,
@@ -167,24 +168,26 @@ class Simulator:
         fig, ax = plt.subplots(dpi=300)
         ax.set_aspect("equal")
         ax.axis("off")
-        ax.set_xlim(0, 300)
-        ax.set_ylim(0, 300)
+        x_min, y_min, x_max, y_max = self.map.get_bounds()
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
         fig.tight_layout()
 
         # init
         # draw map once
         self.map.visualize(ax)
 
-        # add real robot's artists: position and direction
-        robot_patch, robot_arrow = self.real_robot.visualize(
-            ax, alpha=0.5, color="blue"
-        )
-        self.all_artists.append(robot_patch)
-        self.all_artists.append(robot_arrow)
         # add particles' artists: positions and directions
         samples_patch, samples_arrows = self.particles.visualize(ax, color="red")
         self.all_artists.extend(samples_patch)
         self.all_artists.append(samples_arrows)
+
+        # add real robot's artists: position and direction
+        robot_patch, robot_arrow = self.real_robot.visualize(
+            ax, alpha=1.0, color="blue"
+        )
+        self.all_artists.append(robot_patch)
+        self.all_artists.append(robot_arrow)
 
         self.ani = animation.FuncAnimation(
             fig,
@@ -203,10 +206,12 @@ class Simulator:
     def update_frame(self, frame: int) -> list[Artist]:
         cur_distance = self.run_step(self.prev_distance)
 
-        # update real robot
-        self.real_robot.update_artist(self.all_artists[:2])
         # update particles
-        self.particles.update_artist(self.all_artists[2:])
+        self.particles.update_artist(self.all_artists[:-2])
+        # update real robot
+        # make sure the real robot is on top
+        self.real_robot.update_artist(self.all_artists[-2:])
+        
         self.prev_distance = cur_distance
 
         return self.all_artists
