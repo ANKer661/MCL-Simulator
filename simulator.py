@@ -14,6 +14,7 @@ from robot import ParticleGroup, Robot
 
 if typing.TYPE_CHECKING:
     from matplotlib.artist import Artist
+    from matplotlib.figure import Figure
 
     from map import Map
 
@@ -51,6 +52,7 @@ class Simulator:
         resample_factor: float = 0.5,
         resample_random_probability: float = 0.1,
         fps: int = 30,
+        speedup: int = 1,
         save_file_name: str = "simulation.mp4",
     ) -> None:
         self.map = map
@@ -68,6 +70,7 @@ class Simulator:
         self.resample_threshold = resample_factor
         self.fps = fps
         self.dt = 1 / fps
+        self.speedup = speedup
         self.save_file_name = save_file_name
         self.all_artists = []
 
@@ -155,7 +158,7 @@ class Simulator:
 
         return real_distance
 
-    def main_simulation(self, num_steps: int) -> None:
+    def main_simulation(self, num_steps: int, seed: int = 0) -> None:
         # progress bar
         self.progress_bar = tqdm(total=num_steps, desc="Simulating: ", ncols=80)
 
@@ -165,17 +168,47 @@ class Simulator:
                 self.progress_bar.close()
                 print("Simulation finished. Saving animation...")
 
-        fig, ax = plt.subplots(dpi=300)
+        # set random seed
+        np.random.seed(seed)
+
+        # set up the figure
+        fig = self.init_ani()
+
+        self.ani = animation.FuncAnimation(
+            fig,
+            self.update_frame,
+            frames=num_steps,
+            interval=50,
+            blit=True,
+        )
+
+        self.ani.save(
+            self.save_file_name,
+            writer=animation.FFMpegWriter(fps=self.fps * self.speedup),
+            progress_callback=update_progress_bar,
+        )
+
+    def init_ani(self) -> Figure:
+        """
+        Initialize the animation by creating a figure and initializing the artists.
+        """
+        fig, ax = plt.subplots(dpi=200)
         ax.set_aspect("equal")
         ax.axis("off")
         x_min, y_min, x_max, y_max = self.map.get_bounds()
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(y_min, y_max)
+        x_padding = 0.05 * (x_max - x_min)
+        y_padding = 0.1 * (y_max - y_min)
+        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+        ax.set_ylim(y_min - y_padding, y_max + y_padding)
         fig.tight_layout()
 
-        # init
         # draw map once
         self.map.visualize(ax)
+
+        # show steps
+        step_text = ax.text(
+            0.05, 0.95, "Step: 0", fontsize=12, color="black", transform=ax.transAxes
+        )
 
         # add particles' artists: positions and directions
         samples_patch, samples_arrows = self.particles.visualize(ax, color="red")
@@ -189,29 +222,22 @@ class Simulator:
         self.all_artists.append(robot_patch)
         self.all_artists.append(robot_arrow)
 
-        self.ani = animation.FuncAnimation(
-            fig,
-            self.update_frame,
-            frames=num_steps,
-            interval=50,
-            blit=True,
-        )
+        # add text artist
+        self.all_artists.append(step_text)
 
-        self.ani.save(
-            self.save_file_name,
-            writer=animation.FFMpegWriter(fps=self.fps),
-            progress_callback=update_progress_bar,
-        )
+        return fig
 
     def update_frame(self, frame: int) -> list[Artist]:
         cur_distance = self.run_step(self.prev_distance)
 
         # update particles
-        self.particles.update_artist(self.all_artists[:-2])
+        self.particles.update_artist(self.all_artists[:-3])
         # update real robot
         # make sure the real robot is on top
-        self.real_robot.update_artist(self.all_artists[-2:])
-        
+        self.real_robot.update_artist(self.all_artists[-3:-1])
+        # update step text
+        self.all_artists[-1].set_text(f"Step: {frame + 1}")
+
         self.prev_distance = cur_distance
 
         return self.all_artists
@@ -232,6 +258,6 @@ class ControlNode:
 
         if front_dist < self.safe_distance:
             v = 0.0
-            omega = self.max_angular
+            omega = -self.max_angular
 
         return v, omega
