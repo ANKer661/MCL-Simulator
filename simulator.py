@@ -175,17 +175,18 @@ class Simulator:
         # set up the figure
         fig = self.init_ani()
 
+        target_fps = self.fps * self.speedup
         self.ani = animation.FuncAnimation(
             fig,
             self.update_frame,
             frames=num_steps,
-            interval=50,
+            interval=1000 / target_fps,
             blit=True,
         )
 
         self.ani.save(
             self.save_file_name,
-            writer=animation.FFMpegWriter(fps=self.fps * self.speedup),
+            writer=animation.FFMpegWriter(fps=target_fps),
             progress_callback=update_progress_bar,
         )
 
