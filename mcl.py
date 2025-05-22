@@ -91,15 +91,12 @@ class MCL:
         """
         # Random Resampling (p)
         random_mask = np.random.uniform(0, 1, self.num_particles) < self.random_probability
-        # random_positions = self.map.sample_points(
-        #     n=np.sum(random_mask), robot_radius=self.real_robot.radius
-        # )
+
         random_positions = map.sample_points(n=np.sum(random_mask), robot_radius=radius)
         random_thetas = np.random.uniform(0, 2 * np.pi, np.sum(random_mask))
 
         # Low Variance Resampling (1 - p)
         # normalize weights
-        # normalized_weights = self.particles.weights / np.sum(self.particles.weights)
         normalized_weights = weights / np.sum(weights)
         cdf = np.cumsum(normalized_weights)
 
