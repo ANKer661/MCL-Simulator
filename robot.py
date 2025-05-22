@@ -212,37 +212,79 @@ class ParticleGroup:
         self.v_sigma = v_sigma
         self.w_sigma = w_sigma
         self.measurement_sigma = measurement_sigma
+        self.world_segments = None
 
     def measure_distance(self, world: Polygon) -> np.ndarray:
         """
         Simulate rays from each particle's center in the direction of its
         orientation (theta) and measure the distance to the world boundary.
 
+        To calculate the intersection of 2 lines, we express 2 lines as:
+            p: p0 + t * r, where r = p1 - p0                     •q1
+            q: q0 + u * s, where s = q1 - q0                    /
+        and the intersection is given by:            p0•-------•----• p1
+            t = (q0 - p0) x s / (r x s)                       /
+            u = (q0 - p0) x r / (r x s)                      /
+        where "x" is the cross product.                   q0•
+
+        Only intersections where t in (0,1] and u in [0,1] are considered valid.
+
         Returns:
             distances (np.ndarray): Array of distances from each particle to the world boundary.
         """
-        distances = np.zeros(self.num_particles)
 
-        end_point_x = self.positions[:, 0] + self.max_distance * np.cos(self.thetas)
-        end_point_y = self.positions[:, 1] + self.max_distance * np.sin(self.thetas)
+        # cache the world segments
+        if self.world_segments is None:
+            edge_starts = []
+            edge_ends = []
+            ext_coords = list(world.exterior.coords)
+            edge_starts.extend(ext_coords[:-1])
+            edge_ends.extend(ext_coords[1:])
 
-        for i in range(self.num_particles):
-            x, y = self.positions[i]
-            end_x, end_y = end_point_x[i], end_point_y[i]
-            ray = LineString([(x, y), (end_x, end_y)])
+            for obstacle in world.interiors:
+                obstacle_coords = list(obstacle.coords)
+                edge_starts.extend(obstacle_coords[:-1])
+                edge_ends.extend(obstacle_coords[1:])
 
-            intersection = ray.intersection(world.boundary, grid_size=0.1)
-            if intersection.is_empty:
-                distances[i] = self.max_distance
-            else:
-                distances[i] = Point(*self.positions[i]).distance(intersection)
+            edge_starts = np.array(edge_starts)
+            edge_ends = np.array(edge_ends)
+
+            self.world_segments = {
+                "start": edge_starts,
+                "end": edge_ends,
+            }
+
+        ray = self.max_distance * np.stack(
+            [np.cos(self.thetas), np.sin(self.thetas)], axis=1
+        )
+
+        edge_start = self.world_segments["start"]
+        edge_end = self.world_segments["end"]
+
+        p0 = self.positions[:, None, :]  # (n, 1, 2)
+        q0 = edge_start[None, :, :]  # (1, m, 2)
+        q1 = edge_end[None, :, :]  # (1, m, 2)
+
+        # ray is equivalent to p1 - p0
+        ray = ray[:, None, :]  # (n, 1, 2)
+        segment = q1 - q0  # (1, m, 2)
+
+        r_cross_s = np.cross(ray, segment)  # (n, m)
+        q0_minus_p0 = q0 - p0  # (n, m, 2)
+        parallel = np.isclose(r_cross_s, 0)
         
-        # add noise
-        distances += np.random.normal(
+        t = np.cross(q0_minus_p0, segment) / (r_cross_s + 1e-5)  # (n, m)
+        u = np.cross(q0_minus_p0, ray) / (r_cross_s + 1e-5)  # (n, m)
+
+        valid = (t <= 1) & (t > 0) & (u <= 1) & (u >= 0) & ~parallel
+        t = np.where(valid, t, 1)  # set t to max_distance if not intersecting
+
+        # the minimum is the distance that sensor measures
+        distances = t.min(axis=1) * self.max_distance
+
+        return distances + np.random.normal(
             0, self.measurement_sigma, self.num_particles
         )
-        
-        return distances
 
     def update_weights(self, weights: np.ndarray) -> None:
         """
@@ -267,9 +309,7 @@ class ParticleGroup:
         # set the weights of the resampled particles to 1
         self.weights = np.ones(len(self.positions))
 
-    def move(
-        self, v: float, w: float, dt: float
-    ) -> None:
+    def move(self, v: float, w: float, dt: float) -> None:
         """
         Move the particles with linear velocity v and angular velocity w
         for a small time dt. Update the particles' positions and orientations.
@@ -280,7 +320,9 @@ class ParticleGroup:
         """
 
         if abs(v) > 1e-5:  # if v is small, don't add noise
-            v = np.random.normal(v, self.v_sigma, self.num_particles)  # shape: (num_particles,)
+            v = np.random.normal(
+                v, self.v_sigma, self.num_particles
+            )  # shape: (num_particles,)
 
         if abs(w) < 1e-5:
             self.positions[:, 0] += v * np.cos(self.thetas) * dt
