@@ -53,6 +53,7 @@ class Simulator:
         resample_random_probability: float = 0.1,
         fps: int = 30,
         speedup: int = 1,
+        dpi: int = 100,
         save_file_name: str = "simulation.mp4",
         random_seed: int = 0,
     ) -> None:
@@ -74,6 +75,7 @@ class Simulator:
         self.resample_threshold = resample_factor
         self.fps = fps
         self.dt = 1 / fps
+        self.dpi = dpi
         self.speedup = speedup
         self.save_file_name = save_file_name
         self.all_artists = []
@@ -122,9 +124,9 @@ class Simulator:
         normalized_weights = self.particles.weights / np.sum(self.particles.weights)
         return 1 / np.sum(normalized_weights**2)
 
-    def run_step(self, prev_distance: float) -> float:
+    def run_step(self, step: int, prev_distance: float) -> float:
         # ACT Model
-        v, w = self.control_node.get_command(prev_distance)
+        v, w = self.control_node.get_command(step, prev_distance)
         # v = 0
         # w = 1
         # move real robot
@@ -186,6 +188,7 @@ class Simulator:
 
         self.ani.save(
             self.save_file_name,
+            dpi=self.dpi,
             writer=animation.FFMpegWriter(fps=target_fps),
             progress_callback=update_progress_bar,
         )
@@ -199,7 +202,7 @@ class Simulator:
         x_padding = 0.05 * (x_max - x_min)
         y_padding = 0.05 * (y_max - y_min)
         ratio = (x_max - x_min) / (y_max - y_min)
-        fig, ax = plt.subplots(figsize=(4.8 * ratio, 4.8))
+        fig, ax = plt.subplots(figsize=(4.8 * ratio, 4.8), dpi=self.dpi)
         ax.axis("off")
         ax.set_aspect("equal")
         ax.set_xlim(x_min - x_padding, x_max + x_padding)
@@ -232,7 +235,7 @@ class Simulator:
         return fig
 
     def update_frame(self, frame: int) -> list[Artist]:
-        cur_distance = self.run_step(self.prev_distance)
+        cur_distance = self.run_step(frame, self.prev_distance)
 
         # update particles
         self.particles.update_artist(self.all_artists[:-3])
@@ -248,12 +251,15 @@ class Simulator:
 
 
 class ControlNode:
-    def __init__(self, max_linear=10.0, max_angular=2, safe_distance=30):
+    def __init__(
+        self, max_linear=10.0, max_angular=2, safe_distance=30, turning_step=1000
+    ):
         self.max_linear = max_linear
         self.max_angular = max_angular
         self.safe_distance = safe_distance
+        self.turning_step = turning_step
 
-    def get_command(self, front_dist: float) -> tuple[float, float]:
+    def get_command(self, step: int, front_dist: float) -> tuple[float, float]:
         """
         Given a front distance, return linear and angular velocity.
         """
@@ -262,6 +268,6 @@ class ControlNode:
 
         if front_dist < self.safe_distance:
             v = 0.0
-            omega = self.max_angular
+            omega = self.max_angular if step < self.turning_step else -self.max_angular
 
         return v, omega
