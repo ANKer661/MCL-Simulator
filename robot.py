@@ -306,8 +306,9 @@ class ParticleGroup:
         self.positions = new_positions
         self.thetas = new_thetas
 
-        # set the weights of the resampled particles to 1
-        self.weights = np.ones(len(self.positions))
+        # set the weights of the resampled particles to 0.1
+        # for better visualization
+        self.weights = np.ones(len(self.positions)) * 0.1
 
     def move(self, v: float, w: float, dt: float) -> None:
         """
