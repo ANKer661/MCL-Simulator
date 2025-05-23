@@ -5,7 +5,7 @@ from typing import TypeAlias
 import numpy as np
 
 if typing.TYPE_CHECKING:
-    from map import Map
+    from worldmap import WorldMap
 
 RealNumber: TypeAlias = int | float
 
@@ -46,7 +46,7 @@ class MCL:
         prev_weights: np.ndarray,
     ) -> np.ndarray:
         """
-        Update the weights of the particles based on the sensor measurements and the map.
+        Update the weights of the particles based on the sensor measurements and the world_map.
         The weights are updated using a Gaussian distribution centered around the real distance.
 
         Formula:
@@ -64,26 +64,26 @@ class MCL:
         positions: np.ndarray,
         thetas: np.ndarray,
         radius: RealNumber,
-        map: Map,
+        world_map: WorldMap,
         weights: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Resample the particles by Low Variance Resampling + Random Resampling.
 
         The algorithm works as follows:
-            Low Variance Resampling (LVR, 90% probability):
+            Low Variance Resampling (LVR, Prob = 1 - p):
                 1. Normalize the weights so that they sum to 1.
                 2. Compute the CDF of the weights.
                 3. Sample i/N + s for i in range(N), where s = Uniform(0, 1/N).
                 4. Use the CDF to find the indices of the particles to resample.
-            Random Resampling (10% probability):
-                Resample the particles uniformly in the map.
+            Random Resampling (Prob = p):
+                Resample the particles uniformly in the world_map.
 
         Args:
             positions (np.ndarray): The positions of the particles.
             thetas (np.ndarray): The thetas of the particles.
             radius (RealNumber): The radius of the robot.
-            map (Map): The map object, used to sample random positions.
+            world_map (Map): The world_map object, used to sample random positions.
             weights (np.ndarray): The weights of the particles.
 
         Returns:
@@ -92,7 +92,7 @@ class MCL:
         # Random Resampling (p)
         random_mask = np.random.uniform(0, 1, self.num_particles) < self.random_probability
 
-        random_positions = map.sample_points(n=np.sum(random_mask), robot_radius=radius)
+        random_positions = world_map.sample_points(n=np.sum(random_mask), robot_radius=radius)
         random_thetas = np.random.uniform(0, 2 * np.pi, np.sum(random_mask))
 
         # Low Variance Resampling (1 - p)

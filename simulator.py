@@ -16,7 +16,7 @@ if typing.TYPE_CHECKING:
     from matplotlib.artist import Artist
     from matplotlib.figure import Figure
 
-    from map import Map
+    from worldmap import WorldMap
 
 
 RealNumber: TypeAlias = int | float
@@ -24,10 +24,10 @@ RealNumber: TypeAlias = int | float
 
 class Simulator:
     """
-    A class to simulate a robot using Monte Carlo Localization (MCL) in a given map.
+    A class to simulate a robot using Monte Carlo Localization (MCL) in a given world_map.
 
     The simulator manages:
-        - map, robot and particles initialization
+        - world_map, robot and particles initialization
         - the robot's (particles') movement
         - noise in the robot's movement and sensor measurements
         - visualization of the MCL process
@@ -35,7 +35,7 @@ class Simulator:
 
     def __init__(
         self,
-        map: Map,
+        world_map: WorldMap,
         control_node: ControlNode,
         num_particles: int,
         init_x: RealNumber,
@@ -60,7 +60,7 @@ class Simulator:
         # set random seed
         np.random.seed(random_seed)
 
-        self.map = map
+        self.world_map = world_map
         self.control_node = control_node
         self.num_particles = num_particles
         self.mcl_solver = MCL(
@@ -81,7 +81,7 @@ class Simulator:
         self.all_artists = []
 
         # set up real robot
-        if self.map.world.contains(Point(init_x, init_y).buffer(robot_radius)):
+        if self.world_map.world.contains(Point(init_x, init_y).buffer(robot_radius)):
             self.real_robot = Robot(
                 x=init_x,
                 y=init_y,
@@ -94,16 +94,16 @@ class Simulator:
             )
         else:
             raise ValueError(
-                "The initial position of the robot is outside the map boundary."
+                "The initial position of the robot is outside the world_map boundary."
             )
         # init measurement
         self.prev_distance = np.random.normal(
-            self.real_robot.measure_distance(self.map.world), self.measurement_sigma
+            self.real_robot.measure_distance(self.world_map.world), self.measurement_sigma
         )
 
         # set up particles
         self.particles = ParticleGroup(
-            positions=np.array(self.map.sample_points(num_particles, sample_radius)),
+            positions=np.array(self.world_map.sample_points(num_particles, sample_radius)),
             thetas=np.random.uniform(0, 2 * np.pi, num_particles),
             weights=np.ones(num_particles),
             radius=sample_radius,
@@ -136,9 +136,9 @@ class Simulator:
 
         # SEE Model
         # measure distance
-        real_distance = self.real_robot.measure_distance(self.map.world)
+        real_distance = self.real_robot.measure_distance(self.world_map.world)
 
-        distances = self.particles.measure_distance(self.map.world)
+        distances = self.particles.measure_distance(self.world_map.world)
 
         # update weights
         weights = self.mcl_solver.update_weights(
@@ -156,7 +156,7 @@ class Simulator:
                 positions=self.particles.positions,
                 thetas=self.particles.thetas,
                 radius=self.real_robot.radius,
-                map=self.map,
+                world_map=self.world_map,
                 weights=self.particles.weights,
             )
 
@@ -198,7 +198,7 @@ class Simulator:
         Initialize the animation by creating a figure and initializing the artists.
         """
 
-        x_min, y_min, x_max, y_max = self.map.get_bounds()
+        x_min, y_min, x_max, y_max = self.world_map.get_bounds()
         x_padding = 0.05 * (x_max - x_min)
         y_padding = 0.05 * (y_max - y_min)
         ratio = (x_max - x_min) / (y_max - y_min)
@@ -209,8 +209,8 @@ class Simulator:
         ax.set_ylim(y_min - y_padding, y_max + y_padding)
         fig.tight_layout()
 
-        # draw map once
-        self.map.visualize(ax)
+        # draw world_map once
+        self.world_map.visualize(ax)
 
         # show steps
         step_text = ax.text(

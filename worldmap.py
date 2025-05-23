@@ -15,11 +15,11 @@ if typing.TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 
-class Map:
+class WorldMap:
     """
-    A class representing a 2D map with obstacles.
-    The map is defined by a polygonal boundary and a list of obstacles.
-    The map is represented as a Shapely Polygon object.
+    A class representing a 2D world_map with obstacles.
+    The world_map is defined by a polygonal boundary and a list of obstacles.
+    The world_map is represented as a Shapely Polygon object.
     Obstacles are represented as holes in the polygon.
     """
 
@@ -30,7 +30,7 @@ class Map:
 
     def visualize(self, ax=None) -> Axes:
         """
-        Visualize the map on the given axes.
+        Visualize the world_map on the given axes.
         If no axes are provided, create a new figure and axes.
         """
         if ax is None:
@@ -59,7 +59,7 @@ class Map:
 
     def get_bounds(self) -> tuple[float, float, float, float]:
         """
-        Get the bounds of the map.
+        Get the bounds of the world_map.
 
         Returns:
             tuple[float, float, float, float]: (min_x, min_y, max_x, max_y)
@@ -68,10 +68,10 @@ class Map:
 
     def save2json(self, file_name: str) -> None:
         """
-        Save the map to a json file.
+        Save the world_map to a json file.
 
         Args:
-            file_name (str): The name of the file to save the map to.
+            file_name (str): The name of the file to save the world_map to.
         """
         if not file_name.endswith(".json"):
             raise ValueError("File name must end with .json")
@@ -91,10 +91,10 @@ class Map:
     @classmethod
     def load_map_from_json(cls, file_name: str) -> None:
         """
-        Load the map from a json file.
+        Load the world_map from a json file.
 
         Args:
-            file_name (str): The name of the file to load the map from.
+            file_name (str): The name of the file to load the world_map from.
         """
         with open(file_name, "r") as f:
             map_data = json.load(f)
