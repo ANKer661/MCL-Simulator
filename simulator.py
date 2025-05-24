@@ -6,6 +6,7 @@ from typing import TypeAlias
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from shapely import Point
 from tqdm import tqdm
 
@@ -55,6 +56,7 @@ class Simulator:
         speedup: int = 1,
         dpi: int = 100,
         save_file_name: str = "simulation.mp4",
+        add_size_bar: bool = False,
         random_seed: int = 0,
     ) -> None:
         # set random seed
@@ -79,6 +81,7 @@ class Simulator:
         self.speedup = speedup
         self.save_file_name = save_file_name
         self.all_artists = []
+        self.add_size_bar = add_size_bar
 
         # set up real robot
         if self.world_map.world.contains(Point(init_x, init_y).buffer(robot_radius)):
@@ -152,15 +155,16 @@ class Simulator:
         N_eff = self.get_effective_sample_size()
         if N_eff < self.resample_threshold * self.num_particles:
             # resample particles
-            new_positions, new_thetas = self.mcl_solver.resample(
+            new_positions, new_thetas, new_resample_count = self.mcl_solver.resample(
                 positions=self.particles.positions,
                 thetas=self.particles.thetas,
                 radius=self.real_robot.radius,
                 world_map=self.world_map,
                 weights=self.particles.weights,
+                resample_count=self.particles.resample_count,
             )
 
-            self.particles.resample(new_positions, new_thetas)
+            self.particles.resample(new_positions, new_thetas, new_resample_count)
 
         return real_distance
 
@@ -200,7 +204,7 @@ class Simulator:
 
         x_min, y_min, x_max, y_max = self.world_map.get_bounds()
         x_padding = 0.05 * (x_max - x_min)
-        y_padding = 0.05 * (y_max - y_min)
+        y_padding = 0.1 * (y_max - y_min)
         ratio = (x_max - x_min) / (y_max - y_min)
         fig, ax = plt.subplots(figsize=(4.8 * ratio, 4.8), dpi=self.dpi)
         ax.axis("off")
@@ -211,6 +215,23 @@ class Simulator:
 
         # draw world_map once
         self.world_map.visualize(ax)
+
+        # add a size bar
+        if self.add_size_bar: 
+            size_bar_length = (x_max - x_min) / 10  # 10% of the width
+            scalebar = AnchoredSizeBar(
+                ax.transData,
+                size=size_bar_length,
+                label=str(size_bar_length),
+                loc="lower right",
+                pad=0.1,
+                color="black",
+                frameon=False,
+                borderpad=0.5,
+                sep=5,
+                fontproperties={"size": 12},
+            )
+            ax.add_artist(scalebar)
 
         # show steps
         step_text = ax.text(
@@ -232,6 +253,8 @@ class Simulator:
         # add text artist
         self.all_artists.append(step_text)
 
+        self.fig = fig
+
         return fig
 
     def update_frame(self, frame: int) -> list[Artist]:
@@ -246,6 +269,13 @@ class Simulator:
         self.all_artists[-1].set_text(f"Step: {frame + 1}")
 
         self.prev_distance = cur_distance
+
+        if frame == 499 or frame == 999:
+            self.fig.savefig(
+                "step_" + str(frame + 1) + ".png",
+                dpi=self.dpi,
+                bbox_inches="tight",
+            )
 
         return self.all_artists
 

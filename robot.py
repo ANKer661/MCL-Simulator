@@ -190,6 +190,8 @@ class ParticleGroup:
         v_sigma (float): Standard deviation of linear velocity noise.
         w_sigma (float): Standard deviation of angular velocity noise.
         measurement_sigma (float): Standard deviation of measurement noise.
+        world_segments (dict): Cached segments of the world boundary for distance measurement.
+        resample_count (np.ndarray): Array of resample survival counts for each particle.
     """
 
     def __init__(
@@ -213,6 +215,7 @@ class ParticleGroup:
         self.w_sigma = w_sigma
         self.measurement_sigma = measurement_sigma
         self.world_segments = None
+        self.resample_count = np.zeros(self.num_particles, dtype=np.int32)
 
     def measure_distance(self, world: Polygon) -> np.ndarray:
         """
@@ -272,7 +275,7 @@ class ParticleGroup:
         r_cross_s = np.cross(ray, segment)  # (n, m)
         q0_minus_p0 = q0 - p0  # (n, m, 2)
         parallel = np.isclose(r_cross_s, 0)
-        
+
         t = np.cross(q0_minus_p0, segment) / (r_cross_s + 1e-5)  # (n, m)
         u = np.cross(q0_minus_p0, ray) / (r_cross_s + 1e-5)  # (n, m)
 
@@ -296,15 +299,18 @@ class ParticleGroup:
         self,
         new_positions: np.ndarray,
         new_thetas: np.ndarray,
+        new_resample_count: np.ndarray,
     ) -> None:
         """
-        Resample the particles, updating their positions and orientations.
+        Resample the particles, updating their positions, orientations
+        and the resample survival counts.
         """
         assert len(new_positions) == len(new_thetas), (
             "new_positions and new_thetas must have the same length"
         )
         self.positions = new_positions
         self.thetas = new_thetas
+        self.resample_count = new_resample_count
 
         # set the weights of the resampled particles to 0.1
         # for better visualization
@@ -418,13 +424,20 @@ class ParticleGroup:
         polygon_path_patches: list[PathPatch]
         arrows: Quiver
 
+        colors = [
+            "gray" if num_resample < 10 else "red"
+            for num_resample in self.resample_count
+        ]
+
         for i in range(self.num_particles):
             polygon_path_patches[i].set_path(_path_from_polygon(self.get_shape(i)))
             # polygon_path_patches[i].set_alpha(np.maximum(self.weights[i], 0.1))
             polygon_path_patches[i].set_alpha(self.weights[i])
+            polygon_path_patches[i].set_color(colors[i])
 
         x, y, dx, dy = self.get_direction()
         arrows.set_offsets(np.column_stack([x, y]))
         arrows.set_UVC(dx, dy)
         # arrows.set_alpha(np.maximum(self.weights, 0.1))
         arrows.set_alpha(self.weights)
+        arrows.set_color(colors)

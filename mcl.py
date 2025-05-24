@@ -66,7 +66,8 @@ class MCL:
         radius: RealNumber,
         world_map: WorldMap,
         weights: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        resample_count: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Resample the particles by Low Variance Resampling + Random Resampling.
 
@@ -85,9 +86,12 @@ class MCL:
             radius (RealNumber): The radius of the robot.
             world_map (Map): The world_map object, used to sample random positions.
             weights (np.ndarray): The weights of the particles.
+            resample_count (np.ndarray): The resample survival counts for each particle.
 
         Returns:
-            tuple[np.ndarray, np.ndarray]: The new positions and thetas of the particles.
+            new_positions (np.ndarray): The positions of the particles after resampling.
+            new_thetas (np.ndarray): The thetas of the particles after resampling.
+            new_resample_count (np.ndarray): The resample survival counts after resampling.
         """
         # Random Resampling (p)
         random_mask = np.random.uniform(0, 1, self.num_particles) < self.random_probability
@@ -123,4 +127,11 @@ class MCL:
             ]
         )
 
-        return new_positions, new_thetas
+        new_resample_count = np.concatenate(
+            [
+                resample_count[selected_idx] + 1,
+                np.zeros(np.sum(random_mask)),
+            ]
+        )
+
+        return new_positions, new_thetas, new_resample_count
