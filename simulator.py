@@ -270,12 +270,13 @@ class Simulator:
 
         self.prev_distance = cur_distance
 
-        if frame == 499 or frame == 999:
-            self.fig.savefig(
-                "step_" + str(frame + 1) + ".png",
-                dpi=self.dpi,
-                bbox_inches="tight",
-            )
+        # save for presentation
+        # if frame == 499 or frame == 999:
+        #     self.fig.savefig(
+        #         "step_" + str(frame + 1) + ".png",
+        #         dpi=self.dpi,
+        #         bbox_inches="tight",
+        #     )
 
         return self.all_artists
 
