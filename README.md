@@ -2,32 +2,33 @@
 
 A Python implementation of Monte Carlo Localization for robot navigation in 2D environments with obstacles. This project simulates a robot using particle filters to estimate its position and orientation while navigating through a known map.
 
-## 🎯 Features
+## Features
 
 - **Monte Carlo Localization Algorithm**: Particle filter-based localization with configurable parameters
 - **Robot Simulation**: Realistic robot movement with noise modeling
 - **Sensor Simulation**: Distance sensor with measurement noise
-- **Interactive Visualization**: Real-time animation of robot and particle states
+- **Efficient Visualization**: High-resolution animation of robot and particle states and movement in resonable time
 - **Flexible World Maps**: JSON-based map definition with obstacles
-- **Performance Metrics**: Effective sample size tracking and particle variance analysis
 
-## 📁 Project Structure
+## Project Structure
+
+![Architecture](figs/architect.png)
 
 ```
-├── simulator.py       # Main simulation engine and control logic
+├── simulator.py       # Main simulation engine, control and visualization logic
 ├── robot.py           # Robot and particle group implementations
 ├── mcl.py             # Monte Carlo Localization algorithm
-├── worldmap.py        # World map handling and visualization
+├── worldmap.py        # World map handling
 ├── assets/            # Asset folder containing map definitions and related images
 │   ├── map1.json
 │   ├── map2.json
-│   ├── image1.png
-│   └── image2.jpg
+│   ├── map1_preview.png
+│   └── map2_preview.png
 └── README.md          # This file
 
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -74,7 +75,11 @@ simulator.main_simulation(num_steps=1000)
 
 ```
 
-## 🔧 Configuration Parameters
+### Map Creation
+
+check `usage_example/map_creation.ipynb`
+
+## Configuration Parameters
 
 ### Simulator Parameters
 
@@ -82,7 +87,7 @@ simulator.main_simulation(num_steps=1000)
 |----------------------------------|----------------------------------------------|-----------------|
 | `world_map`                      | World map object                             |                 |
 | `control_node`                   | Motion control input                         |                 |
-| `num_particles`                  | Number of particles in the filter            | 1000            |
+| `num_particles`                  | Number of particles in the filter            |                 |
 | `init_x`, `init_y`, `init_theta` | Robot's initial position and orientation     |                 |
 | `robot_radius`                   | Robot's physical radius                      |                 |
 | `sample_radius`                  | Particle sampling radius                     |                 |
@@ -111,21 +116,22 @@ simulator.main_simulation(num_steps=1000)
 | `turning_step`  | Steps to turn when avoiding obstacles | 1000    |
 
 
-## 🎬 Animation Output
+## Animation Output
 
 The simulator generates:
 - **MP4 Animation**: Real-time visualization of the MCL process
-- **Performance Data**: Particle variance data saved as `.npy` files
-- **Optional Screenshots**: Snapshots at specific simulation steps
 
 ### Visualization Elements
+
+![Screenshot of Produced Animation](figs/step_500.png)
 
 - **Blue Circle**: Real robot position and orientation
 - **Red/Gray Particles**: Particle filter estimates
   - Red: High-confidence particles (survived ≥10 resampling cycles)
   - Gray: Regular particles
   - Transparency: Particle weight/confidence
-- **Gray Areas**: Map boundaries and obstacles
+- **Gray Areas**: Free space.
+- **White Areas**: Obstacle.
 
 
 
