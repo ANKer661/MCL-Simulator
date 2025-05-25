@@ -197,6 +197,11 @@ class Simulator:
             progress_callback=update_progress_bar,
         )
 
+        np.save(
+            f"high_prob_variance_{self.measurement_sigma}.npy",
+            np.array(self.particles.high_prob_variance),
+        )
+
     def init_ani(self) -> Figure:
         """
         Initialize the animation by creating a figure and initializing the artists.

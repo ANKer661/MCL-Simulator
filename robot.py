@@ -216,6 +216,7 @@ class ParticleGroup:
         self.measurement_sigma = measurement_sigma
         self.world_segments = None
         self.resample_count = np.zeros(self.num_particles, dtype=np.int32)
+        self.high_prob_variance = []
 
     def measure_distance(self, world: Polygon) -> np.ndarray:
         """
@@ -424,10 +425,14 @@ class ParticleGroup:
         polygon_path_patches: list[PathPatch]
         arrows: Quiver
 
-        colors = [
-            "gray" if num_resample < 10 else "red"
-            for num_resample in self.resample_count
-        ]
+        high_prob_indices = self.resample_count >= 10
+        colors = np.where(high_prob_indices, "red", "gray")
+        if high_prob_indices.sum() == 0:
+            self.high_prob_variance.append(0)
+        else:
+            self.high_prob_variance.append(
+                np.sqrt(np.var(self.positions[high_prob_indices], axis=0).mean())
+            )
 
         for i in range(self.num_particles):
             polygon_path_patches[i].set_path(_path_from_polygon(self.get_shape(i)))
