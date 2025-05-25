@@ -97,7 +97,7 @@ class Simulator:
             )
         else:
             raise ValueError(
-                "The initial position of the robot is outside the world_map boundary."
+                f"The initial position of the robot (x={init_x}, y={init_y}) is outside the world_map boundary."
             )
         # init measurement
         self.prev_distance = np.random.normal(
