@@ -50,11 +50,11 @@ class MCL:
         The weights are updated using a Gaussian distribution centered around the real distance.
 
         Formula:
-            wi = (1 - alpha) * exp(-abs((di - d_real)^2 / (2 * sigma^2))) + alpha * wi_prev
+            wi = (1 - alpha) * exp((di - d_real)^2 / (2 * sigma^2)) + alpha * wi_prev
         """
         error = np.array(distances) - real_distance
         new_weights = (1 - self.alpha) * (
-            np.exp(-abs(error**2 / (2 * self.sigma**2)))
+            np.exp(error**2 / (2 * self.sigma**2))
         ) + self.alpha * prev_weights
 
         return new_weights
