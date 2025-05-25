@@ -289,7 +289,7 @@ class ParticleGroup:
         return distances + np.random.normal(
             0, self.measurement_sigma, self.num_particles
         )
-
+      
     def update_weights(self, weights: np.ndarray) -> None:
         """
         Update the weights of the particles.

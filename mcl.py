@@ -73,12 +73,14 @@ class MCL:
 
         The algorithm works as follows:
             Low Variance Resampling (LVR, Prob = 1 - p):
+
                 1. Normalize the weights so that they sum to 1.
                 2. Compute the CDF of the weights.
                 3. Sample i/N + s for i in range(N), where s = Uniform(0, 1/N).
                 4. Use the CDF to find the indices of the particles to resample.
             Random Resampling (Prob = p):
                 Resample the particles uniformly in the world_map.
+
 
         Args:
             positions (np.ndarray): The positions of the particles.
@@ -101,6 +103,7 @@ class MCL:
 
         # Low Variance Resampling (1 - p)
         # normalize weights
+
         normalized_weights = weights / np.sum(weights)
         cdf = np.cumsum(normalized_weights)
 
