@@ -115,7 +115,7 @@ class Robot:
             distance (float): The distance to the world boundary.
                 if the ray does not intersect the boundary, return max_distance.
         """
-        robot_shape = self.get_shape()
+
         ray = LineString(
             [
                 self.center_pos,
@@ -133,7 +133,7 @@ class Robot:
             # if multiple intersections
             # after test, shapely returns the closest one
             distance = np.random.normal(
-                robot_shape.distance(intersection), self.measurement_sigma
+                Point(*self.center_pos).distance(intersection), self.measurement_sigma
             )
 
         return distance
@@ -149,10 +149,10 @@ class Robot:
             dt (float): Time step.
         """
         x, y = self.center_pos
-        if v > 1e-5:  # if v is small, don't add noise
+        if abs(v) > 1e-5:  # if v is small, don't add noise
             v = np.random.normal(v, self.v_sigma)
 
-        if w < 1e-5:
+        if abs(w) < 1e-5:
             # if w is small, don't add noise
             new_x = x + v * np.cos(self.theta) * dt
             new_y = y + v * np.sin(self.theta) * dt
@@ -190,6 +190,8 @@ class ParticleGroup:
         v_sigma (float): Standard deviation of linear velocity noise.
         w_sigma (float): Standard deviation of angular velocity noise.
         measurement_sigma (float): Standard deviation of measurement noise.
+        world_segments (dict): Cached segments of the world boundary for distance measurement.
+        resample_count (np.ndarray): Array of resample survival counts for each particle.
     """
 
     def __init__(
@@ -212,38 +214,82 @@ class ParticleGroup:
         self.v_sigma = v_sigma
         self.w_sigma = w_sigma
         self.measurement_sigma = measurement_sigma
+        self.world_segments = None
+        self.resample_count = np.zeros(self.num_particles, dtype=np.int32)
+        self.high_prob_variance = []
 
     def measure_distance(self, world: Polygon) -> np.ndarray:
         """
         Simulate rays from each particle's center in the direction of its
         orientation (theta) and measure the distance to the world boundary.
 
+        To calculate the intersection of 2 lines, we express 2 lines as:
+            p: p0 + t * r, where r = p1 - p0                     •q1
+            q: q0 + u * s, where s = q1 - q0                    /
+        and the intersection is given by:            p0•-------•----• p1
+            t = (q0 - p0) x s / (r x s)                       /
+            u = (q0 - p0) x r / (r x s)                      /
+        where "x" is the cross product.                   q0•
+
+        Only intersections where t in (0,1] and u in [0,1] are considered valid.
+
         Returns:
             distances (np.ndarray): Array of distances from each particle to the world boundary.
         """
-        distances = np.zeros(self.num_particles)
 
-        end_point_x = self.positions[:, 0] + self.max_distance * np.cos(self.thetas)
-        end_point_y = self.positions[:, 1] + self.max_distance * np.sin(self.thetas)
+        # cache the world segments
+        if self.world_segments is None:
+            edge_starts = []
+            edge_ends = []
+            ext_coords = list(world.exterior.coords)
+            edge_starts.extend(ext_coords[:-1])
+            edge_ends.extend(ext_coords[1:])
 
-        for i in range(self.num_particles):
-            x, y = self.positions[i]
-            end_x, end_y = end_point_x[i], end_point_y[i]
-            ray = LineString([(x, y), (end_x, end_y)])
+            for obstacle in world.interiors:
+                obstacle_coords = list(obstacle.coords)
+                edge_starts.extend(obstacle_coords[:-1])
+                edge_ends.extend(obstacle_coords[1:])
 
-            intersection = ray.intersection(world.boundary, grid_size=0.1)
-            if intersection.is_empty:
-                distances[i] = self.max_distance
-            else:
-                distances[i] = self.get_shape(i).distance(intersection)
-        
-        # add noise
-        distances += np.random.normal(
+            edge_starts = np.array(edge_starts)
+            edge_ends = np.array(edge_ends)
+
+            self.world_segments = {
+                "start": edge_starts,
+                "end": edge_ends,
+            }
+
+        ray = self.max_distance * np.stack(
+            [np.cos(self.thetas), np.sin(self.thetas)], axis=1
+        )
+
+        edge_start = self.world_segments["start"]
+        edge_end = self.world_segments["end"]
+
+        p0 = self.positions[:, None, :]  # (n, 1, 2)
+        q0 = edge_start[None, :, :]  # (1, m, 2)
+        q1 = edge_end[None, :, :]  # (1, m, 2)
+
+        # ray is equivalent to p1 - p0
+        ray = ray[:, None, :]  # (n, 1, 2)
+        segment = q1 - q0  # (1, m, 2)
+
+        r_cross_s = np.cross(ray, segment)  # (n, m)
+        q0_minus_p0 = q0 - p0  # (n, m, 2)
+        parallel = np.isclose(r_cross_s, 0)
+
+        t = np.cross(q0_minus_p0, segment) / (r_cross_s + 1e-5)  # (n, m)
+        u = np.cross(q0_minus_p0, ray) / (r_cross_s + 1e-5)  # (n, m)
+
+        valid = (t <= 1) & (t > 0) & (u <= 1) & (u >= 0) & ~parallel
+        t = np.where(valid, t, 1)  # set t to max_distance if not intersecting
+
+        # the minimum is the distance that sensor measures
+        distances = t.min(axis=1) * self.max_distance
+
+        return distances + np.random.normal(
             0, self.measurement_sigma, self.num_particles
         )
-        
-        return distances
-
+      
     def update_weights(self, weights: np.ndarray) -> None:
         """
         Update the weights of the particles.
@@ -254,22 +300,24 @@ class ParticleGroup:
         self,
         new_positions: np.ndarray,
         new_thetas: np.ndarray,
+        new_resample_count: np.ndarray,
     ) -> None:
         """
-        Resample the particles, updating their positions and orientations.
+        Resample the particles, updating their positions, orientations
+        and the resample survival counts.
         """
         assert len(new_positions) == len(new_thetas), (
             "new_positions and new_thetas must have the same length"
         )
         self.positions = new_positions
         self.thetas = new_thetas
+        self.resample_count = new_resample_count
 
-        # set the weights of the resampled particles to 1
-        self.weights = np.ones(len(self.positions))
+        # set the weights of the resampled particles to 0.1
+        # for better visualization
+        self.weights = np.ones(len(self.positions)) * 0.1
 
-    def move(
-        self, v: float, w: float, dt: float
-    ) -> None:
+    def move(self, v: float, w: float, dt: float) -> None:
         """
         Move the particles with linear velocity v and angular velocity w
         for a small time dt. Update the particles' positions and orientations.
@@ -279,10 +327,12 @@ class ParticleGroup:
             dt (float): Time step.
         """
 
-        if v > 1e-5:  # if v is small, don't add noise
-            v = np.random.normal(v, self.v_sigma, self.num_particles)  # shape: (num_particles,)
+        if abs(v) > 1e-5:  # if v is small, don't add noise
+            v = np.random.normal(
+                v, self.v_sigma, self.num_particles
+            )  # shape: (num_particles,)
 
-        if w < 1e-5:
+        if abs(w) < 1e-5:
             self.positions[:, 0] += v * np.cos(self.thetas) * dt
             self.positions[:, 1] += v * np.sin(self.thetas) * dt
         else:
@@ -375,11 +425,24 @@ class ParticleGroup:
         polygon_path_patches: list[PathPatch]
         arrows: Quiver
 
+        high_prob_indices = self.resample_count >= 10
+        colors = np.where(high_prob_indices, "red", "gray")
+        if high_prob_indices.sum() == 0:
+            self.high_prob_variance.append(0)
+        else:
+            self.high_prob_variance.append(
+                np.sqrt(np.var(self.positions[high_prob_indices], axis=0).mean())
+            )
+
         for i in range(self.num_particles):
             polygon_path_patches[i].set_path(_path_from_polygon(self.get_shape(i)))
-            polygon_path_patches[i].set_alpha(np.maximum(self.weights[i], 0.1))
+            # polygon_path_patches[i].set_alpha(np.maximum(self.weights[i], 0.1))
+            polygon_path_patches[i].set_alpha(self.weights[i])
+            polygon_path_patches[i].set_color(colors[i])
 
         x, y, dx, dy = self.get_direction()
         arrows.set_offsets(np.column_stack([x, y]))
         arrows.set_UVC(dx, dy)
-        arrows.set_alpha(np.maximum(self.weights, 0.1))
+        # arrows.set_alpha(np.maximum(self.weights, 0.1))
+        arrows.set_alpha(self.weights)
+        arrows.set_color(colors)

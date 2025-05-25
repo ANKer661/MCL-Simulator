@@ -1,6 +1,7 @@
 # custom
 .DS_Store
-figs/
+*.mp4
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
