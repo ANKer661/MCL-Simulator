@@ -7,7 +7,7 @@ A Python implementation of Monte Carlo Localization for robot navigation in 2D e
 - **Monte Carlo Localization Algorithm**: Particle filter-based localization with configurable parameters
 - **Robot Simulation**: Realistic robot movement with noise modeling
 - **Sensor Simulation**: Distance sensor with measurement noise
-- **Efficient Visualization**: High-resolution animation of robot and particle states and movement in resonable time
+- **Efficient Visualization**: High-resolution animation of robot and particle states and movement in reasonable time
 - **Flexible World Maps**: JSON-based map definition with obstacles
 
 ## Project Structure
