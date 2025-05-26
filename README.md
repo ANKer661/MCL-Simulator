@@ -7,7 +7,7 @@ A Python implementation of Monte Carlo Localization for robot navigation in 2D e
 - **Monte Carlo Localization Algorithm**: Particle filter-based localization with configurable parameters
 - **Robot Simulation**: Realistic robot movement with noise modeling
 - **Sensor Simulation**: Distance sensor with measurement noise
-- **Efficient Visualization**: High-resolution animation of robot and particle states and movement in reasonable time
+- **Efficient Visualization**: High-resolution animation of robot and particle states and movement in resonable time
 - **Flexible World Maps**: JSON-based map definition with obstacles
 
 ## Project Structure
@@ -32,52 +32,28 @@ A Python implementation of Monte Carlo Localization for robot navigation in 2D e
 
 ### Prerequisites
 
-```bash
-pip install numpy matplotlib shapely tqdm
-```
+- **Python 3.12** (recommended)
+- Required Python packages:
+  - numpy
+  - matplotlib
+  - shapely
+  - tqdm
+
+Make sure these packages are installed in your environment before running the examples.
 
 ### Basic Usage
 
-```python
-ffrom map import Map
-from simulator import Simulator, ControlNode
+Refer to `noise.py` or `symmetric.py` in the `usage_example` directory.
+To generate a video of the MCL process, run the following command:
 
-    
-map = Map.load_map_from_json("assets/map2.json")
-
-simulator = Simulator(
-    world_map=map,
-    control_node=ControlNode(10, 2, 30),
-    num_particles=5000,
-    init_x=100,
-    init_y=100,
-    init_theta=0.5,
-    robot_radius=3,
-    sample_radius=1.5,
-    sensor_max_distance=500,
-    likelyhood_sigma=5,
-    measurement_sigma=3,
-    ema_alpha=0.66,
-    v_sigma=0.1,
-    w_sigma=0.05,
-    resample_factor=0.6,
-    resample_random_probability=0.2,
-    fps=5,
-    speedup=5,
-    dpi=100,
-    save_file_name="simulation.mp4",
-    add_size_bar=False,
-    random_seed=123
-)
-
-
-simulator.main_simulation(num_steps=1000)
-
+```bash
+python -m usage_example.symmetric
+# or python -m usage_example.noise
 ```
 
 ### Map Creation
 
-check `usage_example/map_creation.ipynb`
+See `usage_example/map_creation.ipynb` for an example of map creation.
 
 ## Configuration Parameters
 
