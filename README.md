@@ -25,7 +25,6 @@ A Python implementation of Monte Carlo Localization for robot navigation in 2D e
 │   ├── map1_preview.png
 │   └── map2_preview.png
 └── README.md          # This file
-
 ```
 
 ## Quick Start
@@ -40,6 +39,13 @@ A Python implementation of Monte Carlo Localization for robot navigation in 2D e
   - tqdm
 
 Make sure these packages are installed in your environment before running the examples.
+
+To get started:
+```bash
+git clone https://github.com/ANKer661/MCL-Simulator.git
+cd MCL-Simulator
+code .  # or open the project with your preferred editor
+```
 
 ### Basic Usage
 
