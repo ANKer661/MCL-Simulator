@@ -37,6 +37,7 @@ A Python implementation of Monte Carlo Localization for robot navigation in 2D e
   - matplotlib
   - shapely
   - tqdm
+  - ffmpeg
 
 Make sure these packages are installed in your environment before running the examples.
 
