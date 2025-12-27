@@ -1,5 +1,7 @@
 # Monte Carlo Localization (MCL) Robot Simulation
 
+Course project, USI, Robotics, 2025 Spring.
+
 A Python implementation of Monte Carlo Localization for robot navigation in 2D environments with obstacles. This project simulates a robot using particle filters to estimate its position and orientation while navigating through a known map.
 
 ## Features
